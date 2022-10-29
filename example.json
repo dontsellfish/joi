@@ -1,0 +1,14 @@
+{
+  "token": "5211111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "admin-list": [
+    1701111111,
+    151111111
+  ],
+  "default-post-times": [
+    "06:06",
+    "12:12"
+  ],
+  "channel-id": -1001111111111,
+  "comments-id": -1001111111111,
+  "temporary-files-directory": "./data"
+}

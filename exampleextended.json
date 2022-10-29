@@ -1,0 +1,21 @@
+{
+  "token": "5211111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "admin-list": [
+    1701111111,
+    151111111
+  ],
+  "default-post-times": [
+    "06:06",
+    "12:12"
+  ],
+  "channel-id": -1001111111111,
+  "comments-id": -1001111111111,
+  "temporary-files-directory": ".",
+  "redis-prefix": "sample_prefix",
+  "redis-address": "localhost:6379",
+  "redis-database-number": 0,
+  "default-post-text": "[@durov](https://t.me/mybeautifulchannel)",
+  "parse-mode": "Markdown",
+  "disable-web-page-preview": false,
+  "disable-notification": true
+}
