@@ -183,16 +183,29 @@ func (joi *Joi) Start() {
 	admin.Use(middleware.Whitelist(joi.Cfg.AdminList...))
 
 	admin.Handle("/preview", func(ctx tele.Context) error {
-		post, err := joi.extractLinkedPost(ctx)
-		if err != nil {
-			return err
-		}
+		if len(ctx.Args()) == 0 {
+			post, err := joi.extractLinkedPost(ctx)
+			if err != nil {
+				return err
+			}
 
-		_, err = joi.worker.PostExtended(post, ctx.Chat().ID, &tele.SendOptions{ReplyTo: ctx.Message(), ParseMode: joi.Cfg.ParseMode}, false)
-		if err != nil {
-			return err
+			_, err = joi.worker.PostExtended(post, ctx.Chat().ID, &tele.SendOptions{ReplyTo: ctx.Message(), ParseMode: joi.Cfg.ParseMode}, false)
+			if err != nil {
+				return err
+			}
+		} else if ctx.Args()[0] == "all" {
+			posts, err := joi.Database.GetPosts()
+			if err != nil {
+				return err
+			}
+			for _, post := range posts {
+				_, err = joi.worker.PostExtended(post, ctx.Chat().ID, &tele.SendOptions{ReplyTo: ctx.Message(), ParseMode: joi.Cfg.ParseMode}, false)
+				if err != nil {
+					_, _ = joi.Bot.Reply(&tele.Message{ID: int(post.OriginalMsgIds[0]), Chat: &tele.Chat{ID: post.AdminPostedId}}, "smth wrong with this message")
+					return err
+				}
+			}
 		}
-
 		return nil
 	})
 
@@ -603,6 +616,8 @@ func tgMessageToMarkdown(text string, entities tele.Entities) string {
 		case entity.Type == tele.EntityTextLink:
 			markdownString[entity.Offset] = "[" + markdownString[entity.Offset]
 			markdownString[entity.Offset+entity.Length-1] += fmt.Sprintf("](%s)", escapeTgMarkdownV2SpecialSymbols(entity.URL))
+		case entity.Type == tele.EntityMention:
+		case entity.Type == tele.EntityURL:
 		default:
 			log.Printf("entity of type %s is not supported", entity.Type)
 		}

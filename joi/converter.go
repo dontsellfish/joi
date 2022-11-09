@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -55,23 +56,6 @@ func NewConverter(args ...Converter) *Converter {
 	return &converter
 }
 
-func (converter *Converter) Image(filename string) (string, error) {
-	newImg := filename + ".jpg"
-	output, err := exec.Command(converter.ConvertPath, "-strip", "-resize", converter.MaximumSizes, "-quality", converter.JpgQuality, filename, newImg).Output()
-	if err != nil {
-		return "", errors.New(fmt.Sprintf("while converting %s an error occured %s\n%s", filename, err.Error(), string(output)))
-	}
-	return newImg, nil
-}
-
-type ImageInfo struct {
-	Size  int64
-	Sizes struct {
-		Height, Width int
-	}
-	Type string
-}
-
 func (converter *Converter) IdentifyImage(filename string) (*ImageInfo, error) {
 	stat, err := os.Stat(filename)
 	if err != nil {
@@ -97,17 +81,51 @@ func (converter *Converter) IdentifyImage(filename string) (*ImageInfo, error) {
 	return &info, nil
 }
 
-func (converter *Converter) Video(filename string) (string, error) {
-	newVideo := filename + "_h264.mp4"
-	output, err := exec.Command(converter.FfmpegPath, "-i", filename, "-vcodec", "libx264", "-acodec", "aac",
-		"-y", "-preset", "fast", "-map_metadata", "-1", newVideo).Output()
+func (converter *Converter) Image(filename string) (string, error) {
+	newImg := filename + ".jpg"
+	output, err := exec.Command(converter.ConvertPath, "-strip", "-resize", converter.MaximumSizes, "-quality", converter.JpgQuality, filename, newImg).Output()
 	if err != nil {
 		return "", errors.New(fmt.Sprintf("while converting %s an error occured %s\n%s", filename, err.Error(), string(output)))
 	}
-	return newVideo, nil
+	return newImg, nil
 }
 
-func IsShouldBeConvertedToBePostedOnTelegram(info *ImageInfo) bool {
+func (converter *Converter) ImageTelegram(filename string) (string, error) {
+	quality, _ := strconv.ParseInt(converter.JpgQuality, 10, 64)
+	for quality >= 80 {
+		info, err := converter.IdentifyImage(filename)
+		if err != nil {
+			return "", err
+		}
+		if info.IsTooBigForTelegram() {
+			newImg := filename + ".jpg"
+			output, err := exec.Command(converter.ConvertPath, "-strip", "-resize", converter.MaximumSizes,
+				"-quality", strconv.Itoa(int(quality)),
+				filename, newImg).Output()
+			if err != nil {
+				return "", errors.New(fmt.Sprintf("while converting %s an error occured %s\n%s", filename, err.Error(), string(output)))
+			}
+			err = os.Rename(newImg, filename)
+			if err != nil {
+				return "", err
+			}
+			quality -= 5
+		} else {
+			return filename, err
+		}
+	}
+	return "", errors.New("what the hell is broken with " + filename)
+}
+
+type ImageInfo struct {
+	Size  int64
+	Sizes struct {
+		Height, Width int
+	}
+	Type string
+}
+
+func (info *ImageInfo) IsTooBigForTelegram() bool {
 	if info.Size > 5_000_000 || info.Sizes.Width > 3840 || info.Sizes.Height > 3840 {
 		return true
 	}
@@ -117,4 +135,14 @@ func IsShouldBeConvertedToBePostedOnTelegram(info *ImageInfo) bool {
 		}
 	}
 	return true
+}
+
+func (converter *Converter) Video(filename string) (string, error) {
+	newVideo := filename + "_h264.mp4"
+	output, err := exec.Command("ffmpeg", "-i", filename, "-vcodec", "libx264", "-acodec", "aac", "-y",
+		"-preset", "fast", "-map_metadata", "-1", "-metadata", "meh=t.me/by_meh", newVideo).Output()
+	if err != nil {
+		return "", errors.New(fmt.Sprintf("while converting %s an error occured %s\n%s", filename, err.Error(), string(output)))
+	}
+	return newVideo, nil
 }

@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const RetriesNumber = 3
+
 type PostWorker struct {
 	Joi               *Joi
 	PollingTimeout    time.Duration
@@ -64,12 +66,22 @@ func (worker *PostWorker) Start() {
 func (worker *PostWorker) PostForTime(time string) ([]tele.Message, error) {
 	post, err := worker.Joi.Database.GetRandomPostByTime(time)
 	if IsErrRedisNotFound(err) && worker.isDefaultPostTime(time) {
-		post, err = worker.Joi.Database.GetRandomPostByTime(TimeIsNotSpecified)
-		if err != nil {
-			return nil, err
-		} else {
-			return worker.Post(post)
+		for i := 0; i < RetriesNumber; i++ {
+			post, err = worker.Joi.Database.GetRandomPostByTime(TimeIsNotSpecified)
+			if err != nil {
+				return nil, err
+			} else {
+				var posted []tele.Message
+				posted, err = worker.Post(post)
+				if err == nil {
+					return posted, nil
+				} else {
+					_, _ = worker.Joi.Bot.Reply(&tele.Message{ID: int(post.OriginalMsgIds[0]), Chat: &tele.Chat{ID: post.AdminPostedId}},
+						fmt.Sprintf("[%d] smth wrong with this message, %s", i+1, err.Error()))
+				}
+			}
 		}
+		return nil, err
 	} else if err != nil {
 		return nil, err
 	} else {
@@ -256,15 +268,11 @@ func (joi *Joi) postInfoToTelegramAlbum(post *PostInfo) (album tele.Album, sourc
 			}
 			downloaded = append(downloaded, localFileName)
 
-			info, err := joi.Converter.IdentifyImage(localFileName)
+			imageForTelegram, err := joi.Converter.ImageTelegram(localFileName)
 			if err != nil {
 				return nil, nil, downloaded, err
 			}
-			if IsShouldBeConvertedToBePostedOnTelegram(info) {
-				localFileName, err = joi.Converter.Image(localFileName)
-				if err != nil {
-					return nil, nil, downloaded, err
-				}
+			if imageForTelegram != localFileName {
 				downloaded = append(downloaded, localFileName)
 			}
 
